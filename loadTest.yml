@@ -1,0 +1,62 @@
+name: Postman to K6 Conversion with Load Testing Configuration
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  postman-to-k6:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Postman-to-K6 Converter
+        run: npm install -g postman-to-k6
+
+      - name: Install k6
+        run: |
+          sudo apt update
+          sudo apt install -y gnupg software-properties-common
+          curl -s https://dl.k6.io/key.gpg | sudo apt-key add -
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt update
+          sudo apt install -y k6  
+          
+      - name: Convert Postman Collection to K6 Script
+        run: |
+          postman-to-k6 ./.postman/collection/Memcrypt_qa_performance.postman_collection.json -e ./.postman/env/memcrypt_qa.postman_environment.json -o ./grafana/scripts/k6script.js
+      - name: Install Docker and Docker Compose
+        run: |
+          sudo apt-get remove -y docker docker-engine docker.io containerd containerd.io
+          sudo apt-get purge -y docker docker-engine docker.io containerd containerd.io
+          sudo apt-get autoremove -y
+          
+          # Clean and update apt packages
+          sudo apt-get clean
+          sudo apt-get update
+          
+          # Install Docker
+          sudo apt-get install -y docker.io
+          
+          # Install Docker Compose
+          sudo curl -fsSL -o /usr/local/bin/docker-compose "https://github.com/docker/compose/releases/download/2.20.2/docker-compose-$(uname -s)-$(uname -m)"
+          sudo chmod +x /usr/local/bin/docker-compose
+          
+          # Verify Docker and Docker Compose versions
+          docker --version
+          docker-compose --version
+          
+      - name: Run K6 Load Test
+        run: |
+          # docker run -i -v $(pwd):/scripts grafana/k6 run /scripts/grafana/scripts/k6script.js
+          # k6 --version
+          # k6 run --vus 1 ./grafana/scripts/k6script.js
+          docker-compose -f ./grafana/docker-compose.yml up -d
